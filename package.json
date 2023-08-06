@@ -89,5 +89,8 @@
 	},
 	"svelte": "./dist/index.js",
 	"types": "./dist/index.d.ts",
-	"type": "module"
+	"type": "module",
+	"dependencies": {
+		"crypto-js": "^4.1.1"
+	}
 }

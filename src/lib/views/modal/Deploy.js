@@ -7,6 +7,7 @@ import { buildStaticPage } from '$lib/stores/helpers'
 import _ from 'lodash-es'
 import {page} from '$app/stores'
 import {site} from '$lib/stores/data/site'
+import { MD5 } from 'crypto-js'
 
 export async function push_site({repo_name, create_new = false}) {
   const files = (
@@ -98,16 +99,19 @@ export async function buildSiteBundle({ pages }) {
       },
     ]
 
-    if (js && language !== 'en') {
-      page_tree.push({
-        path: url === 'index' ? `${language}/_module.js` : `${full_url}/_module.js`,
-        content: js,
-      })
-    } else if (js) {
-      page_tree.push({
-        path: url === 'index' ? '_module.js' : `${full_url}/_module.js`,
-        content: js,
-      })
+    if(js) {
+      const fileHash = MD5(js).toString()
+      if(language !== 'en') {
+        page_tree.push({
+          path: url === 'index' ? `${language}/${fileHash}.js` : `${full_url}/${fileHash}..js`,
+          content: js,
+        })
+      } else {
+        page_tree.push({
+          path: url === 'index' ? `${fileHash}.js` : `${full_url}/${fileHash}.js`,
+          content: js,
+        })
+      }
     }
 
     return page_tree

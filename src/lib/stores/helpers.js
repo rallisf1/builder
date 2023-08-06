@@ -9,6 +9,7 @@ import pages from './data/pages.js'
 import activePage from './app/activePage.js'
 import { locale } from './app/misc.js'
 import { processCSS, getEmptyValue } from '../utils.js'
+import { MD5 } from 'crypto-js'
 
 export function getSymbolUseInfo(symbolID) {
   const info = { pages: [], frequency: 0 }
@@ -115,7 +116,7 @@ export async function buildStaticPage({ page = get(activePage), site = get(activ
     return separateModules ? `\
       const path = window.location.pathname === '/' ? '' : window.location.pathname
       const [ {default:App} ] = await Promise.all([
-        import(path + '/_module.js')
+        import(path + '/${MD5(js).toString()}.js')
       ]).catch(e => console.error(e))
       new App({
         target: document.querySelector('body'),
