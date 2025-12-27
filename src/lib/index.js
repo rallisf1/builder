@@ -8,7 +8,7 @@ import modal from './stores/app/modal'
 import {locale, locked_blocks} from './stores/app/misc'
 import {buildStaticPage} from './stores/helpers'
 import {registerProcessors} from './component'
-import { Page, Site } from './const'
+import { Page, Site, languages } from './const'
 import PrimoFieldTypes from './field-types'
 import {validate_site_structure_v2} from './converter'
 import PrimoPage from './views/editor/Page.svelte'
@@ -39,6 +39,7 @@ export {
   components,
   Page,
   Site,
+  languages,
   fieldTypes,
   PrimoFieldTypes,
   stores,
