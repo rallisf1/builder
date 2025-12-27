@@ -6,7 +6,7 @@ import activePage from './stores/app/activePage'
 import fieldTypes from './stores/app/fieldTypes'
 import modal from './stores/app/modal'
 import {locale, locked_blocks} from './stores/app/misc'
-import {buildStaticPage} from './stores/helpers'
+import {buildStaticPage, getPageData, get_content_with_static} from './stores/helpers'
 import {registerProcessors} from './component'
 import { Page, Site, languages } from './const'
 import PrimoFieldTypes from './field-types'
@@ -45,6 +45,8 @@ export {
   stores,
   registerProcessors,
   buildStaticPage,
+  getPageData,
+  get_content_with_static,
   validate_site_structure_v2,
   PrimoPage
 }
