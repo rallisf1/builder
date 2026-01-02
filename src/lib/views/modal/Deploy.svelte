@@ -108,7 +108,7 @@
 	}
 
 	async function get_repos() {
-		const { data } = await axios.get('/api/deploy/repos')
+		const { data } = await axios.get('/api/deploy/repos?provider=github')
 		return data
 	}
 
