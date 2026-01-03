@@ -6,7 +6,7 @@
 	const topPaneSize = writable(get(onMobile) ? '100%' : '50%')
 	const bottomPaneSize = writable('50%')
 	const orientation = writable('horizontal')
-	const activeTab = writable(0)
+	const activeTab = writable('code')
 </script>
 
 <script>
@@ -20,7 +20,7 @@
 	import GenericFields from '../../../components/GenericFields.svelte'
 	import { autoRefresh } from '../../../components/misc/CodePreview.svelte'
 	import { buildStaticPage } from '../../../stores/helpers'
-	import { locale, onMobile } from '../../../stores/app/misc'
+	import { locale, writingDirection, onMobile } from '../../../stores/app/misc'
 	import { modal } from '../../../stores/app'
 	import { active_page } from '../../../stores/actions'
 	import activePage, {
@@ -196,34 +196,23 @@
 		}, 200)
 
 		async function compile() {
-			preview = await buildStaticPage({
-				page: {
-					...$activePage,
-					code: {
-						...local_code,
-						html: {
-							head: html,
-							below: '' // TODO
-						}
-					},
-					content: local_content
-				}
-			})
+			preview = (
+				await buildStaticPage({
+					page: {
+						...$activePage,
+						code: {
+							...local_code,
+							html: {
+								head: html,
+								below: '' // TODO
+							}
+						},
+						content: local_content
+					}
+				})
+			)?.html
 		}
 	}
-
-	const tabs = [
-		{
-			id: 'code',
-			label: 'Code',
-			icon: 'code'
-		},
-		{
-			id: 'fields',
-			label: 'Fields',
-			icon: 'database'
-		}
-	]
 
 	let previewUpToDate = false
 	$: rawHTML, rawCSS, rawJS, (previewUpToDate = false) // reset when code changes
@@ -264,47 +253,69 @@
 	}
 </script>
 
-<ModalHeader
-	label="Page"
-	warn={() => {
-		// if (!isEqual(local_component, component)) {
-		//   const proceed = window.confirm(
-		//     'Undrafted changes will be lost. Continue?'
-		//   )
-		//   return proceed
-		// } else return true
-		return true
-	}}
-	button={{
-		icon: 'material-symbols:save',
-		label: 'Save',
-		onclick: saveComponent,
-		disabled: disableSave
-	}}
-/>
-
-<main class:showing-ide={$showingIDE} class:showing-cms={!$showingIDE}>
-	<HSplitPane
-		orientation={$orientation}
-		bind:leftPaneSize={$leftPaneSize}
-		bind:rightPaneSize={$rightPaneSize}
-		bind:topPaneSize={$topPaneSize}
-		bind:bottomPaneSize={$bottomPaneSize}
-		hideRightPanel={$onMobile}
-		hideLeftOverflow={$showingIDE && $activeTab === 0}
+<div class="PageEditor">
+	<ModalHeader
+		label="Page"
+		warn={() => {
+			// if (!isEqual(local_component, component)) {
+			//   const proceed = window.confirm(
+			//     'Undrafted changes will be lost. Continue?'
+			//   )
+			//   return proceed
+			// } else return true
+			return true
+		}}
+		button={{
+			icon: 'material-symbols:save',
+			label: 'Save',
+			onclick: saveComponent,
+			disabled: disableSave
+		}}
 	>
-		<div slot="left" lang={$locale}>
-			{#if $showingIDE}
-				<Tabs {tabs} bind:activeTab={$activeTab} />
-				{#if $activeTab === 0}
-					<FullCodeEditor
-						bind:html={rawHTML}
-						bind:css={rawCSS}
-						{data}
+		<div slot="title">
+			<Tabs
+				tabs={[
+					{
+						id: 'content',
+						label: 'Content',
+						icon: 'uil:edit'
+					},
+					{
+						id: 'fields',
+						label: 'Fields',
+						icon: 'fluent:form-multiple-24-regular'
+					},
+					{
+						id: 'code',
+						label: 'Code',
+						icon: 'gravity-ui:code'
+					}
+				]}
+				bind:active_tab_id={$activeTab}
+			/>
+		</div>
+	</ModalHeader>
+	<main class:showing-ide={$showingIDE} class:showing-cms={!$showingIDE}>
+		<HSplitPane
+			orientation={$orientation}
+			bind:leftPaneSize={$leftPaneSize}
+			bind:rightPaneSize={$rightPaneSize}
+			bind:topPaneSize={$topPaneSize}
+			bind:bottomPaneSize={$bottomPaneSize}
+			hideRightPanel={$onMobile}
+		>
+			<div slot="left" lang={$locale} dir={$writingDirection}>
+				{#if $activeTab === 'content'}
+					<GenericFields
+						bind:fields
 						on:save={saveComponent}
-						on:refresh={refreshPreview}
+						on:input={() => {
+							fields = fields.filter(Boolean) // to trigger setting `data`
+							saveLocalContent()
+						}}
+						showCode={false}
 					/>
-				{:else if $activeTab === 1}
+				{:else if $activeTab === 'fields'}
 					<GenericFields
 						bind:fields
 						on:input={() => {
@@ -318,32 +329,35 @@
 						}}
 						showCode={true}
 					/>
+				{:else if $activeTab === 'code'}
+					<FullCodeEditor
+						bind:html={rawHTML}
+						bind:css={rawCSS}
+						{data}
+						on:save={saveComponent}
+						on:refresh={refreshPreview}
+					/>
 				{/if}
-			{:else}
-				<GenericFields
-					bind:fields
-					on:save={saveComponent}
-					on:input={() => {
-						fields = fields.filter(Boolean) // to trigger setting `data`
-						saveLocalContent()
-					}}
-					showCode={false}
+			</div>
+			<div slot="right">
+				<CodePreview
+					bind:orientation={$orientation}
+					view="small"
+					{loading}
+					{preview}
+					error={compilationError}
 				/>
-			{/if}
-		</div>
-		<div slot="right">
-			<CodePreview
-				bind:orientation={$orientation}
-				view="small"
-				{loading}
-				{preview}
-				error={compilationError}
-			/>
-		</div>
-	</HSplitPane>
-</main>
+			</div>
+		</HSplitPane>
+	</main>
+</div>
 
 <style lang="postcss">
+	.PageEditor {
+		flex: 1;
+		display: flex;
+		flex-direction: column;
+	}
 	main {
 		display: flex; /* to help w/ positioning child items in code view */
 		background: var(--primo-color-black);

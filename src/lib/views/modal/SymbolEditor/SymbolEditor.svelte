@@ -22,7 +22,7 @@
 	import { autoRefresh } from '../../../components/misc/CodePreview.svelte'
 
 	import { processCode, processCSS, wrapInStyleTags } from '../../../utils'
-	import { locale, onMobile } from '../../../stores/app/misc'
+	import { locale, writingDirection, onMobile } from '../../../stores/app/misc'
 
 	import * as actions from '../../../stores/actions'
 	import { content, code as siteCode } from '../../../stores/data/site'
@@ -33,6 +33,8 @@
 
 	/** @type {import('$lib').Symbol} */
 	export let symbol
+
+	export let tab = 'content'
 
 	export let header = {
 		label: 'Create Symbol',
@@ -68,30 +70,7 @@
 	let fields = cloneDeep(symbol.fields)
 
 	// local copy of component content to modify & save
-	let local_content = get_local_content()
-	function get_local_content() {
-		let combined_content = symbol.content
-		symbol.fields.forEach((field) => {
-			if (field.is_static) {
-				combined_content = {
-					...combined_content,
-					[$locale]: {
-						...combined_content[$locale],
-						[field.key]: symbol.content[$locale][field.key] || getCachedPlaceholder(field)
-					}
-				}
-			} else {
-				combined_content = {
-					...combined_content,
-					[$locale]: {
-						...combined_content[$locale],
-						[field.key]: component.content[$locale][field.key] || getCachedPlaceholder(field)
-					}
-				}
-			}
-		})
-		return combined_content
-	}
+	let local_content = cloneDeep(symbol.content)
 
 	// component data for compiling
 	$: data = get_data($locale, local_content)
@@ -198,17 +177,6 @@
 
 	$: compilationError && data && refreshPreview() // recompile when there's a compilation error & data changes
 
-	// ensure placeholder values always conform to form
-	// TODO: do for remaining fields
-	$: fields = fields.map((field) => {
-		if (field.type === 'link' && !field.value?.url)
-			return {
-				...field,
-				value: getCachedPlaceholder(field)
-			}
-		else return field
-	})
-
 	let disableSave = false
 	async function compileComponentCode({ html, css, js }) {
 		disableSave = true
@@ -250,19 +218,6 @@
 		}
 	}
 
-	const tabs = [
-		{
-			id: 'code',
-			label: 'Code',
-			icon: 'code'
-		},
-		{
-			id: 'fields',
-			label: 'Fields',
-			icon: 'database'
-		}
-	]
-
 	let previewUpToDate = false
 	$: raw_html, raw_css, raw_js, (previewUpToDate = false) // reset when code changes
 
@@ -281,10 +236,8 @@
 		}
 
 		if (!disableSave) {
-			// parse content - static content gets saved to symbol, dynamic content gets saved to instance
-
 			// code & fields gets saved to symbol
-			actions.symbols.update(symbol.id, {
+			await actions.symbols.update(symbol.id, {
 				code: local_code,
 				content: local_content,
 				fields
@@ -309,7 +262,33 @@
 		icon: 'material-symbols:save',
 		disabled: disableSave
 	}}
-/>
+>
+	<div slot="title">
+		<Tabs
+			active_tab_id={tab}
+			on:switch={({ detail: active }) => {
+				tab = active
+			}}
+			tabs={[
+				{
+					id: 'content',
+					label: 'Content',
+					icon: 'uil:edit'
+				},
+				{
+					id: 'fields',
+					label: 'Fields',
+					icon: 'fluent:form-multiple-24-regular'
+				},
+				{
+					id: 'code',
+					label: 'Code',
+					icon: 'gravity-ui:code'
+				}
+			]}
+		/>
+	</div>
+</ModalHeader>
 
 <main class:showing-ide={$showingIDE} class:showing-cms={!$showingIDE}>
 	<HSplitPane
@@ -319,36 +298,32 @@
 		bind:topPaneSize={$topPaneSize}
 		bind:bottomPaneSize={$bottomPaneSize}
 		hideRightPanel={$onMobile}
-		hideLeftOverflow={$showingIDE && $activeTab === 0}
 	>
-		<div slot="left" lang={$locale}>
-			{#if $showingIDE}
-				<Tabs {tabs} bind:activeTab={$activeTab} />
-				{#if $activeTab === 0}
-					<FullCodeEditor
-						bind:html={raw_html}
-						bind:css={raw_css}
-						bind:js={raw_js}
-						{data}
-						on:save={saveComponent}
-						on:refresh={refreshPreview}
-					/>
-				{:else if $activeTab === 1}
-					<GenericFields
-						bind:fields
-						on:input={() => {
-							refreshPreview()
-							save_local_content()
-						}}
-						on:delete={async () => {
-							await tick() // wait for fields to update
-							save_local_content()
-							refreshPreview()
-						}}
-						showCode={true}
-					/>
-				{/if}
-			{:else}
+		<div slot="left" lang={$locale} dir={$writingDirection}>
+			{#if tab === 'code'}
+				<FullCodeEditor
+					bind:html={raw_html}
+					bind:css={raw_css}
+					bind:js={raw_js}
+					{data}
+					on:save={saveComponent}
+					on:refresh={refreshPreview}
+				/>
+			{:else if tab === 'fields'}
+				<GenericFields
+					bind:fields
+					on:input={() => {
+						refreshPreview()
+						save_local_content()
+					}}
+					on:delete={async () => {
+						await tick() // wait for fields to update
+						save_local_content()
+						refreshPreview()
+					}}
+					showCode={true}
+				/>
+			{:else if tab === 'content'}
 				<GenericFields
 					bind:fields
 					on:save={saveComponent}

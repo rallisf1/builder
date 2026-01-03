@@ -1,5 +1,7 @@
 <script>
+	import { getContext } from 'svelte'
 	import { find as _find } from 'lodash-es'
+	import { browser } from '$app/environment'
 	import ToolbarButton from './ToolbarButton.svelte'
 	import LocaleSelector from './LocaleSelector.svelte'
 	import { timeline } from '../../stores/data'
@@ -9,8 +11,13 @@
 	import { PrimoButton } from '../../components/buttons'
 	import site from '../../stores/data/site'
 	import { userRole } from '../../stores/app'
-	import { name as page_name, fields as page_fields } from '../../stores/app/activePage'
+	import {
+		id as page_id,
+		name as page_name,
+		fields as page_fields
+	} from '../../stores/app/activePage'
 	import modal from '../../stores/app/modal'
+	import { click_to_copy } from '$lib/utilities'
 
 	const page_field_button = {
 		id: 'toolbar--page',
@@ -58,6 +65,9 @@
 	]
 	$: pageEmpty =
 		$sections && $sections.length <= 1 && $sections.length > 0 && $sections[0]['type'] === 'options'
+
+	let DEBUGGING
+	if (browser) DEBUGGING = getContext('DEBUGGING')
 </script>
 
 <nav aria-label="toolbar" id="primo-toolbar" class="primo-reset">
@@ -83,7 +93,14 @@
 		</div>
 		<div class="site-name">
 			<span class="site">{$site.name} /</span>
-			<span class="page">{$page_name}</span>
+			{#if DEBUGGING}
+				<span class="page">
+					{$page_name}
+					<button use:click_to_copy>({$page_id})</button>
+				</span>
+			{:else}
+				<span class="page">{$page_name}</span>
+			{/if}
 		</div>
 		<div class="right">
 			{#if !$timeline.first}
@@ -92,6 +109,7 @@
 			{#if !$timeline.last}
 				<ToolbarButton id="redo" title="Redo" icon="material-symbols:redo" on:click={redo_change} />
 			{/if}
+			<slot />
 			<LocaleSelector />
 			<ToolbarButton
 				type="primo"

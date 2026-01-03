@@ -1,4 +1,5 @@
 <script>
+	import { tick } from 'svelte'
 	import _ from 'lodash-es'
 	import fileSaver from 'file-saver'
 	import axios from 'axios'
@@ -18,18 +19,28 @@
 
 	async function create_symbol() {
 		const symbol = Symbol({ site: $site.id })
-		await symbol_actions.create(symbol)
+		symbol_actions.create(symbol)
+		refresh_symbols()
 	}
 
 	async function rename_symbol(id, name) {
-		await symbol_actions.update(id, { name })
+		symbol_actions.update(id, { name })
+		refresh_symbols()
 	}
 
+	/**
+	 * @param {string} symbol_id
+	 */
 	async function delete_symbol(symbol_id) {
 		const symbol = $symbols.find((s) => s.id === symbol_id)
 		symbol_actions.delete(symbol)
+		refresh_symbols()
 	}
 
+	/**
+	 * @param {string} symbol_id
+	 * @param {number} index - The index at which the new symbol should be inserted.
+	 */
 	async function duplicate_symbol(symbol_id, index) {
 		const symbol = $symbols.find((s) => s.id === symbol_id)
 		const new_symbol = _.cloneDeep(symbol)
@@ -43,6 +54,7 @@
 			},
 			index
 		)
+		refresh_symbols()
 	}
 
 	async function upload_symbol({ target }) {
@@ -52,11 +64,12 @@
 			try {
 				const uploaded = JSON.parse(target.result)
 				const validated = validate_symbol(uploaded)
-				await symbol_actions.create({
+				symbol_actions.create({
 					...validated,
 					id: uuidv4(),
 					site: $site.id
 				})
+				refresh_symbols()
 			} catch (error) {
 				console.error(error)
 			}
@@ -64,6 +77,9 @@
 		reader.readAsText(target.files[0])
 	}
 
+	/**
+	 * @param {string} symbol_id - The id of the symbol to be downloaded.
+	 */
 	async function download_symbol(symbol_id) {
 		const symbol = $symbols.find((s) => s.id === symbol_id)
 		const json = JSON.stringify(symbol)
@@ -78,23 +94,27 @@
 		return data.symbols.map((s) => ({ ...s, _drag_id: uuidv4() }))
 	}
 
-	$: draggable_symbols = $symbols.map((s) => ({ ...s, _drag_id: s.id }))
+	let draggable_symbols = $symbols.map((s) => ({ ...s, _drag_id: s.id }))
+	$: refresh_symbols($symbols)
 
 	const flipDurationMs = 200
 
-	let all_symbols
-	$: if (draggable_symbols) all_symbols = _.cloneDeep(draggable_symbols)
 	function consider_dnd({ detail }) {
 		draggable_symbols = detail.items
 	}
-	function finalize_dnd({ detail }) {
+
+	async function finalize_dnd({ detail }) {
 		if (detail.info.trigger === 'droppedIntoZone') {
-			draggable_symbols = detail.items
-			symbol_actions.rearrange(detail.items)
-		} else if (detail.info.trigger === 'droppedIntoAnother') {
-			draggable_symbols = all_symbols
+			const rearranged = detail.items.map((item, index) => ({ ...item, index }))
+			await symbol_actions.rearrange(rearranged)
 		}
+		refresh_symbols()
 		dragging = null
+	}
+
+	async function refresh_symbols() {
+		await tick()
+		draggable_symbols = $symbols.map((s) => ({ ...s, _drag_id: s.id }))
 	}
 
 	let dragging = null
@@ -274,7 +294,9 @@
 	.symbols {
 		padding-inline: 1.5rem;
 		gap: 1rem;
-		display: grid;
+		flex: 1;
+		display: flex;
+		flex-direction: column;
 		padding-bottom: 1.5rem;
 		overflow-y: scroll;
 	}

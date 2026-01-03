@@ -1,5 +1,6 @@
 <script>
 	import '@fontsource/fira-code/index.css'
+	import { loadIcons, enableCache } from '@iconify/svelte'
 	import { browser } from '$app/environment'
 	import IconButton from './components/IconButton.svelte'
 	import Toolbar from './views/editor/Toolbar.svelte'
@@ -63,6 +64,38 @@
 		rightPaneSize = browser ? (window.innerWidth / 5) * 5 + 'px' : '0px'
 		showing_sidebar = true
 	}
+
+	// Preload icons
+	loadIcons([
+		'mdi:icon',
+		'bxs:duplicate',
+		'ic:baseline-edit',
+		'ic:baseline-download',
+		'ic:outline-delete',
+		'bsx:error',
+		'mdi:plus',
+		'mdi:upload',
+		'fa-solid:plus',
+		'carbon:close',
+		'material-symbols:drag-handle-rounded',
+		'ph:caret-down-bold',
+		'ph:caret-up-bold',
+		'charm:layout-rows',
+		'charm:layout-columns',
+		'bx:refresh',
+		'uil:image-upload',
+		'mdi:arrow-up',
+		'mdi:arrow-down',
+		'ion:trash',
+		'akar-icons:plus',
+		'akar-icons:check',
+		'mdi:chevron-down',
+		'ic:round-code',
+		'eos-icons:loading',
+		'material-symbols:code',
+		'fluent:form-multiple-24-regular'
+	])
+	enableCache('local')
 </script>
 
 <HSplitPane bind:leftPaneSize bind:rightPaneSize style="margin-top:54px">
@@ -76,7 +109,9 @@
 		{/if}
 	</div>
 	<div slot="right">
-		<Toolbar />
+		<Toolbar>
+			<slot name="toolbar"><!-- optional fallback --></slot>
+		</Toolbar>
 		<slot />
 	</div>
 </HSplitPane>
@@ -84,6 +119,8 @@
 <Modal visible={!!activeModal}>
 	<svelte:component this={activeModal} {...$modal.componentProps} />
 </Modal>
+
+<svelte:window on:resize={reset} />
 
 <svelte:head>
 	<link

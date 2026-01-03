@@ -13,16 +13,17 @@
 	import { setContext } from 'svelte'
 	import _, { cloneDeep, find, isEqual, chain as _chain } from 'lodash-es'
 	import HSplitPane from './HSplitPane.svelte'
+	import { Tabs } from '../../../components/misc'
+
 	import { getEmptyValue } from '../../../utils'
 	import ModalHeader from '../ModalHeader.svelte'
-	import { Tabs } from '../../../components/misc'
 	import FullCodeEditor from './FullCodeEditor.svelte'
 	import { CodePreview } from '../../../components/misc'
 	import GenericFields from '../../../components/GenericFields.svelte'
 	import { autoRefresh } from '../../../components/misc/CodePreview.svelte'
 
 	import { processCode, processCSS, wrapInStyleTags } from '../../../utils'
-	import { locale, onMobile } from '../../../stores/app/misc'
+	import { locale, onMobile, userRole } from '../../../stores/app/misc'
 
 	import symbols from '../../../stores/data/symbols'
 	import * as actions from '../../../stores/actions'
@@ -34,6 +35,7 @@
 
 	/** @type {import('$lib').Section} */
 	export let component
+	export let tab = 'code'
 
 	export let header = {
 		label: 'Create Component',
@@ -72,22 +74,24 @@
 	// local copy of component content to modify & save
 	let local_content = get_local_content()
 	function get_local_content() {
-		let combined_content = symbol.content
+		let combined_content = component.content
 		symbol.fields.forEach((field) => {
 			if (field.is_static) {
+				const value = symbol.content[$locale][field.key]
 				combined_content = {
 					...combined_content,
 					[$locale]: {
 						...combined_content[$locale],
-						[field.key]: symbol.content[$locale][field.key] || getCachedPlaceholder(field)
+						[field.key]: value !== undefined ? value : getCachedPlaceholder(field)
 					}
 				}
 			} else {
+				const value = component.content[$locale][field.key]
 				combined_content = {
 					...combined_content,
 					[$locale]: {
 						...combined_content[$locale],
-						[field.key]: component.content[$locale][field.key] || getCachedPlaceholder(field)
+						[field.key]: value !== undefined ? value : getCachedPlaceholder(field)
 					}
 				}
 			}
@@ -134,14 +138,16 @@
 
 		// Remove content when field deleted
 		function removeNonexistantKeys() {
-			Object.keys(local_content[$locale]).forEach((key) => {
-				if (!find(fields, ['key', key])) {
-					Object.keys(local_content).forEach((loc) => {
-						delete updated_local_content[loc][key]
-					})
-				}
-			})
-			refresh_preview()
+			if(local_content[$locale]) {
+				Object.keys(local_content[$locale]).forEach((key) => {
+					if (!find(fields, ['key', key])) {
+						Object.keys(local_content).forEach((loc) => {
+							delete updated_local_content[loc][key]
+						})
+					}
+				})
+				refresh_preview()
+			}
 		}
 
 		function addMissingKeys() {
@@ -241,19 +247,6 @@
 		}
 	}
 
-	const tabs = [
-		{
-			id: 'code',
-			label: 'Code',
-			icon: 'code'
-		},
-		{
-			id: 'fields',
-			label: 'Fields',
-			icon: 'database'
-		}
-	]
-
 	let previewUpToDate = false
 	$: raw_html, raw_css, raw_js, (previewUpToDate = false) // reset when code changes
 
@@ -277,20 +270,22 @@
 			const updated_section_content = {}
 
 			Object.entries(local_content).forEach(([language_key, language_content]) => {
-				Object.entries(language_content).forEach(([field_key, field_value]) => {
-					const matching_field = fields.find((field) => field.key === field_key)
-					if (matching_field.is_static) {
-						updated_symbol_content[language_key] = {
-							...updated_symbol_content[language_key],
-							[field_key]: field_value
+				if(language_content) {
+					Object.entries(language_content).forEach(([field_key, field_value]) => {
+						const matching_field = fields.find((field) => field.key === field_key)
+						if (matching_field.is_static) {
+							updated_symbol_content[language_key] = {
+								...updated_symbol_content[language_key],
+								[field_key]: field_value
+							}
+						} else {
+							updated_section_content[language_key] = {
+								...updated_section_content[language_key],
+								[field_key]: field_value
+							}
 						}
-					} else {
-						updated_section_content[language_key] = {
-							...updated_section_content[language_key],
-							[field_key]: field_value
-						}
-					}
-				})
+					})
+				}
 			})
 
 			// code & fields gets saved to symbol
@@ -311,38 +306,108 @@
 	}
 </script>
 
-<ModalHeader
-	{...header}
-	warn={() => {
-		const component_changed = true
-		// !isEqual(local_content, get_local_content()) || !isEqual(local_code, symbol.code)
-		if (component_changed) {
-			const proceed = window.confirm('Undrafted changes will be lost. Continue?')
-			return proceed
-		} else return true
-	}}
-	button={{
-		...header.button,
-		onclick: save_component,
-		icon: 'material-symbols:save',
-		disabled: disable_save
-	}}
-/>
-
-<main class:showing-ide={$showingIDE} class:showing-cms={!$showingIDE}>
-	<HSplitPane
-		orientation={$orientation}
-		bind:leftPaneSize={$leftPaneSize}
-		bind:rightPaneSize={$rightPaneSize}
-		bind:topPaneSize={$topPaneSize}
-		bind:bottomPaneSize={$bottomPaneSize}
-		hideRightPanel={$onMobile}
-		hideLeftOverflow={$showingIDE && $activeTab === 0}
+{#if $userRole === 'DEV'}
+	<ModalHeader
+		{...header}
+		warn={() => {
+			const component_changed = true
+			// !isEqual(local_content, get_local_content()) || !isEqual(local_code, symbol.code)
+			if (component_changed) {
+				const proceed = window.confirm('Undrafted changes will be lost. Continue?')
+				return proceed
+			} else return true
+		}}
+		button={{
+			...header.button,
+			onclick: save_component,
+			icon: 'material-symbols:save',
+			disabled: disable_save
+		}}
 	>
-		<div slot="left" lang={$locale}>
-			{#if $showingIDE}
-				<Tabs {tabs} bind:activeTab={$activeTab} />
-				{#if $activeTab === 0}
+		<div class="tabs" slot="title">
+			<Tabs
+				active_tab_id={tab}
+				on:switch={({ detail: active }) => {
+					tab = active
+				}}
+				tabs={[
+					{
+						id: 'content',
+						label: 'Content',
+						icon: 'uil:edit'
+					},
+					{
+						id: 'fields',
+						label: 'Fields',
+						icon: 'fluent:form-multiple-24-regular'
+					},
+					{
+						id: 'code',
+						label: 'Code',
+						icon: 'gravity-ui:code'
+					}
+				]}
+			/>
+		</div>
+	</ModalHeader>
+{:else}
+	<ModalHeader
+		{...header}
+		warn={() => {
+			const component_changed = true
+			// !isEqual(local_content, get_local_content()) || !isEqual(local_code, symbol.code)
+			if (component_changed) {
+				const proceed = window.confirm('Undrafted changes will be lost. Continue?')
+				return proceed
+			} else return true
+		}}
+		title="Edit {component.symbol.name || 'Block'}"
+		button={{
+			...header.button,
+			onclick: save_component,
+			icon: 'material-symbols:save',
+			disabled: disable_save
+		}}
+	/>
+{/if}
+
+<main class:showing-fields={tab === 'fields'} lang={$locale}>
+	{#if tab === 'fields'}
+		<GenericFields
+			bind:fields
+			on:input={() => {
+				refresh_preview()
+				save_local_content()
+			}}
+			on:delete={async () => {
+				await tick() // wait for fields to update
+				save_local_content()
+				refresh_preview()
+			}}
+			showCode={true}
+		/>
+	{:else}
+		<HSplitPane
+			orientation={$orientation}
+			bind:leftPaneSize={$leftPaneSize}
+			bind:rightPaneSize={$rightPaneSize}
+			bind:topPaneSize={$topPaneSize}
+			bind:bottomPaneSize={$bottomPaneSize}
+			hideRightPanel={$onMobile}
+			hideLeftOverflow={$showingIDE && $activeTab === 0}
+		>
+			<div slot="left" style="display: flex; flex-direction: column">
+				{#if tab === 'content'}
+					<GenericFields
+						bind:fields
+						on:save={save_component}
+						on:input={() => {
+							fields = fields.filter(Boolean) // to trigger setting `data`
+							save_local_content()
+						}}
+						showCode={false}
+					/>
+				{:else if tab === 'code'}
 					<FullCodeEditor
 						bind:html={raw_html}
 						bind:css={raw_css}
@@ -351,48 +416,25 @@
 						on:save={save_component}
 						on:refresh={refresh_preview}
 					/>
-				{:else if $activeTab === 1}
-					<GenericFields
-						bind:fields
-						on:input={() => {
-							refresh_preview()
-							save_local_content()
-						}}
-						on:delete={async () => {
-							await tick() // wait for fields to update
-							save_local_content()
-							refresh_preview()
-						}}
-						showCode={true}
-					/>
 				{/if}
-			{:else}
-				<GenericFields
-					bind:fields
-					on:save={save_component}
-					on:input={() => {
-						fields = fields.filter(Boolean) // to trigger setting `data`
-						save_local_content()
-					}}
-					showCode={false}
+			</div>
+			<div slot="right">
+				<CodePreview
+					bind:orientation={$orientation}
+					view="small"
+					{loading}
+					{componentApp}
+					{data}
+					error={compilationError}
 				/>
-			{/if}
-		</div>
-		<div slot="right">
-			<CodePreview
-				bind:orientation={$orientation}
-				view="small"
-				{loading}
-				{componentApp}
-				{data}
-				error={compilationError}
-			/>
-		</div>
-	</HSplitPane>
+			</div>
+		</HSplitPane>
+	{/if}
 </main>
 
 <style lang="postcss">
 	main {
+		width: 100%;
 		display: flex; /* to help w/ positioning child items in code view */
 		background: var(--primo-color-black);
 		color: var(--color-gray-2);

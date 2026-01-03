@@ -1,11 +1,20 @@
 <script>
-	import { createEventDispatcher } from 'svelte'
-	const dispatch = createEventDispatcher()
+	import axios from 'axios'
+	import { createEventDispatcher, getContext } from 'svelte'
+	import _ from 'lodash-es'
+	import Icon from '@iconify/svelte'
 	import modal from '$lib/stores/app/modal'
 	import { showingIDE, userRole } from '$lib/stores/app/misc'
 	import MenuPopup from '$lib/components/MenuPopup.svelte'
 	import IconButton from '$lib/components/IconButton.svelte'
-	import Block from './BlockItem.svelte'
+	import { processCSS, wrapInStyleTags } from '$lib/utils'
+	import { code as siteCode } from '$lib/stores/data/site'
+	import { code as pageCode } from '$lib/stores/app/activePage'
+	import { locale } from '$lib/stores/app/misc'
+	import { click_to_copy } from '$lib/utilities'
+	import { browser } from '$app/environment'
+	import IFrame from '$lib/views/modal/ComponentLibrary/IFrame.svelte'
+	const dispatch = createEventDispatcher()
 
 	export let symbol
 	export let controls_enabled = true
@@ -16,6 +25,7 @@
 		modal.show(
 			'SYMBOL_EDITOR',
 			{
+				tab: 'content',
 				symbol,
 				header: {
 					title: `Edit ${symbol.name || 'Block'}`,
@@ -41,6 +51,7 @@
 		modal.show(
 			'SYMBOL_EDITOR',
 			{
+				tab: 'code',
 				symbol,
 				header: {
 					title: `Edit ${symbol.title || 'Block'}`,
@@ -80,6 +91,44 @@
 		// workaround for inability to see cursor when div empty
 		if (symbol.name === '') {
 			symbol.name = 'Block'
+		}
+	}
+
+	let height = 0
+
+	let componentCode
+	let cachedSymbol = {}
+	let component_error
+	$: browser && compile_component_code(symbol, $locale)
+	async function compile_component_code(symbol, language) {
+		if (
+			_.isEqual(cachedSymbol.code, symbol.code) &&
+			_.isEqual(cachedSymbol.content, symbol.content)
+		) {
+			return
+		}
+		const res = await axios
+			.post(`/api/render`, {
+				id: symbol.id,
+				code: {
+					html: symbol.code.html,
+					css: $siteCode.css + $pageCode.css + symbol.code.css,
+					js: symbol.code.js
+				},
+				content: symbol.content
+			})
+			.catch((e) => console.error(e))
+		if (res?.data?.error) {
+			console.log({ res })
+			component_error = res.data.error
+		} else if (res?.data) {
+			const updated_componentCode = res.data
+			if (!_.isEqual(componentCode, updated_componentCode)) {
+				componentCode = updated_componentCode
+				cachedSymbol = _.cloneDeep({ code: symbol.code, content: symbol.content })
+			}
+
+			component_error = null
 		}
 	}
 </script>
@@ -123,6 +172,13 @@
 				<MenuPopup
 					icon="carbon:overflow-menu-vertical"
 					options={[
+						getContext('DEBUGGING')
+							? {
+									label: `${symbol.id.slice(0, 5)}...`,
+									icon: 'ph:copy-duotone',
+									on_click: (e) => click_to_copy(e.target, symbol.id)
+							  }
+							: {},
 						{
 							label: 'Duplicate',
 							icon: 'bxs:duplicate',
@@ -148,8 +204,17 @@
 			</div>
 		{/if}
 	</header>
+	<!-- svelte-ignore a11y-no-static-element-interactions -->
 	<div class="symbol" on:mousedown on:mouseup>
-		<Block {symbol} />
+		{#if component_error}
+			<div class="error">
+				<Icon icon="bxs:error" />
+			</div>
+		{:else}
+			{#key componentCode}
+				<IFrame bind:height {componentCode} />
+			{/key}
+		{/if}
 	</div>
 </div>
 
@@ -189,22 +254,21 @@
 			width: 100%;
 			border-radius: 0.25rem;
 			overflow: hidden;
-			/* border: 1px solid #e3e4e8; */
-			/* border-radius: 6px; */
-			/* overflow: hidden; */
+			position: relative;
 			cursor: grab;
 			min-height: 2rem;
 			transition: box-shadow 0.2s;
 			border: 1px solid var(--color-gray-8);
-			/* background: var(--primo-color-white); */
-
-			&.dragging {
-				cursor: grabbing;
-				box-shadow: 0 0 5px 2px rgba(0, 0, 0, 0.1);
-				position: fixed;
-				z-index: 999;
-			}
 		}
+	}
+	.error {
+		display: flex;
+		justify-content: center;
+		height: 100%;
+		position: absolute;
+		inset: 0;
+		align-items: center;
+		background: #ff0000;
 	}
 	[contenteditable] {
 		outline: 0 !important;

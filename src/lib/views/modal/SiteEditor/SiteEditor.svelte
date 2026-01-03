@@ -6,7 +6,7 @@
 	const topPaneSize = writable(get(onMobile) ? '100%' : '50%')
 	const bottomPaneSize = writable('50%')
 	const orientation = writable('horizontal')
-	const activeTab = writable(0)
+	const activeTab = writable('code')
 </script>
 
 <script>
@@ -20,7 +20,7 @@
 	import GenericFields from '../../../components/GenericFields.svelte'
 	import { autoRefresh } from '../../../components/misc/CodePreview.svelte'
 	import { buildStaticPage } from '../../../stores/helpers'
-	import { locale, onMobile } from '../../../stores/app/misc'
+	import { locale, writingDirection, onMobile } from '../../../stores/app/misc'
 	import { modal } from '../../../stores/app'
 	import { active_site } from '../../../stores/actions'
 	import site, {
@@ -177,19 +177,21 @@
 		}, 200)
 
 		async function compile() {
-			preview = await buildStaticPage({
-				site: {
-					...$site,
-					code: {
-						...local_code,
-						html: {
-							head: html,
-							below: '' // TODO
-						}
-					},
-					content: local_content
-				}
-			})
+			preview = (
+				await buildStaticPage({
+					site: {
+						...$site,
+						code: {
+							...local_code,
+							html: {
+								head: html,
+								below: '' // TODO
+							}
+						},
+						content: local_content
+					}
+				})
+			)?.html
 		}
 	}
 
@@ -197,12 +199,12 @@
 		{
 			id: 'code',
 			label: 'Code',
-			icon: 'code'
+			icon: 'material-symbols:code'
 		},
 		{
 			id: 'fields',
 			label: 'Fields',
-			icon: 'database'
+			icon: 'fluent:form-multiple-24-regular'
 		}
 	]
 
@@ -245,7 +247,7 @@
 </script>
 
 <ModalHeader
-	label="Page"
+	label="Site"
 	warn={() => {
 		// if (!isEqual(local_component, component)) {
 		//   const proceed = window.confirm(
@@ -261,7 +263,30 @@
 		onclick: saveComponent,
 		disabled: disableSave
 	}}
-/>
+>
+	<div slot="title">
+		<Tabs
+			tabs={[
+				{
+					id: 'content',
+					label: 'Content',
+					icon: 'uil:edit'
+				},
+				{
+					id: 'fields',
+					label: 'Fields',
+					icon: 'fluent:form-multiple-24-regular'
+				},
+				{
+					id: 'code',
+					label: 'Code',
+					icon: 'gravity-ui:code'
+				}
+			]}
+			bind:active_tab_id={$activeTab}
+		/>
+	</div>
+</ModalHeader>
 
 <main class:showing-ide={$showingIDE} class:showing-cms={!$showingIDE}>
 	<HSplitPane
@@ -273,33 +298,30 @@
 		hideRightPanel={$onMobile}
 		hideLeftOverflow={$showingIDE && $activeTab === 0}
 	>
-		<div slot="left" lang={$locale}>
-			{#if $showingIDE}
-				<Tabs {tabs} bind:activeTab={$activeTab} />
-				{#if $activeTab === 0}
-					<FullCodeEditor
-						bind:html={rawHTML}
-						bind:css={rawCSS}
-						{data}
-						on:save={saveComponent}
-						on:refresh={refreshPreview}
-					/>
-				{:else if $activeTab === 1}
-					<GenericFields
-						bind:fields
-						on:input={() => {
-							refreshPreview()
-							saveLocalContent()
-						}}
-						on:delete={async () => {
-							await tick() // wait for fields to update
-							saveLocalContent()
-							refreshPreview()
-						}}
-						showCode={true}
-					/>
-				{/if}
-			{:else}
+		<div slot="left" lang={$locale} dir={$writingDirection}>
+			{#if $activeTab === 'code'}
+				<FullCodeEditor
+					bind:html={rawHTML}
+					bind:css={rawCSS}
+					{data}
+					on:save={saveComponent}
+					on:refresh={refreshPreview}
+				/>
+			{:else if $activeTab === 'fields'}
+				<GenericFields
+					bind:fields
+					on:input={() => {
+						refreshPreview()
+						saveLocalContent()
+					}}
+					on:delete={async () => {
+						await tick() // wait for fields to update
+						saveLocalContent()
+						refreshPreview()
+					}}
+					showCode={true}
+				/>
+			{:else if $activeTab === 'content'}
 				<GenericFields
 					bind:fields
 					on:save={saveComponent}
